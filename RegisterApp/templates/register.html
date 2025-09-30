@@ -1,0 +1,736 @@
+{% set title = title or 'RegisterApp · Panel de Registros' %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>{{ title }}</title>
+<style>
+:root{
+  --bg:#f7f7fb; --card:#ffffff; --border:#e5e7eb; --ring:#cbd5e1;
+  --text:#0f172a; --text-dim:#475569; --accent:#2563eb;
+  --yes:#16a34a; --no:#dc2626; --hover:#f1f5f9
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-columns:260px 1fr;grid-template-areas:"header header" "tabs panes";gap:16px;max-width:1200px;margin:auto;padding:24px}
+
+/* ===== Header (fijo con logo + app + razón social) ===== */
+.header{
+  grid-area:header;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:var(--bg);z-index:100;padding:12px 0;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{height:40px}
+.brand-text{display:flex;flex-direction:column}
+.brand-text .app-name{font-size:22px;font-weight:800;letter-spacing:.2px}
+.brand-text .razon{font-size:14px;font-weight:600;color:var(--text-dim)}
+
+.header-actions{display:flex;gap:10px;align-items:center}
+.header-actions a{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;text-decoration:none;color:var(--text);font-weight:600}
+.header-actions a:hover{background:var(--hover)}
+
+/* ===== Tabs / Panes ===== */
+#tabs{grid-area:tabs;position:sticky;top:16px;align-self:start;max-height:calc(100vh - 48px);overflow:auto}
+.tabs{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:14px;background:var(--card);padding:8px}
+.tab{width:100%;text-align:left;border:1px solid transparent;border-radius:10px;padding:10px 12px;font-weight:600;color:var(--text-dim);cursor:pointer;background:transparent}
+.tab:hover{background:var(--hover)}
+.tab.active{color:var(--text);border-color:var(--ring);background:#eef2ff}
+#panes{grid-area:panes}
+.pane{display:none}
+.pane.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 10px 30px rgba(16,24,40,.06)}
+.title{font-weight:800;margin:0 0 12px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.form-grid.one{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:6px}
+label{font-size:12px;letter-spacing:.3px;color:var(--text-dim)}
+input,select,textarea{background:#fff;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#c7d2fe;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+textarea{resize:vertical}
+.actions{margin-top:14px;display:flex;gap:10px}
+.btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.list{margin-bottom:16px}
+.table{border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:210px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
+tr:hover{background:var(--hover)}
+.yn{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.yn input{position:absolute;opacity:0;width:0;height:0}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9999px;border:1px solid var(--border);background:#fff;font-weight:600;cursor:pointer;user-select:none}
+.pill::before{content:"";width:12px;height:12px;border-radius:50%;display:inline-block;border:2px solid var(--border)}
+.pill.yes::before{background:rgba(22,163,74,.12);border-color:var(--yes)}
+.pill.no::before{background:rgba(220,38,38,.12);border-color:var(--no)}
+.yn input:checked + .pill.yes{border-color:var(--yes);background:rgba(22,163,74,.08)}
+.yn input:checked + .pill.no{border-color:var(--no);background:rgba(220,38,38,.08)}
+
+/* Modal */
+.modal-back{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+.modal{max-width:720px;width:100%;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 30px rgba(16,24,40,.18);display:flex;flex-direction:column;max-height:85vh}
+.modal-body{padding:18px;overflow:auto}
+.modal-foot{border-top:1px solid var(--border);padding:12px 18px;display:flex;justify-content:flex-end}
+.locked-date{background:#f8fafc;cursor:not-allowed}
+
+@media (max-width:960px){
+  .app{grid-template-columns:1fr;grid-template-areas:"header" "tabs" "panes"}
+  #tabs{position:static;max-height:none}
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="brand">
+      {% if logo_url %}
+        <img src="{{ logo_url }}" alt="Logo {{ company_name or '' }}">
+      {% endif %}
+      <div class="brand-text">
+        <span class="app-name">RegisterApp</span>
+        <span class="razon">{{ company_name or (razones[0]['nombre'] if razones and razones[0] else '') }}</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      {% if session.get('usuario') %}
+        <span>{{ session['usuario'] }} — {{ rol }}</span>
+        <a href="{{ url_for('logout') }}">Salir</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="tabs" class="tabs"></div>
+  <div id="panes" class="panes"></div>
+</div>
+
+<!-- Modal POP-UP -->
+<div id="cpoModal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="cpoTitle">
+  <div class="modal">
+    <div class="modal-body">
+      <h3 id="cpoTitle" class="title">Parámetro operativo</h3>
+      <div id="cpoHtml" style="line-height:1.55"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn primary" id="cpoOk">Entendido y continuar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+function labelOf(table, col){
+  const lbl = (NICE_LABEL && NICE_LABEL[col]) || col.replace(/_/g," ").replace(/\b\w/g, m=>m.toUpperCase());
+  return lbl;
+}
+
+/* ====== Datos del backend ====== */
+const ALLOWED_TABS = new Set({{ (allowed_tabs or []) | tojson }});
+const USER_ROLE = {{ (rol or '') | tojson }};
+const currentUser   = {{ (session.get('usuario') or '') | tojson }};
+const _razones      = {{ (razones      or []) | tojson }};
+const _roles        = {{ (roles        or []) | tojson }};
+const _restaurantes = {{ (restaurantes or []) | tojson }};
+const TABLES_CFG    = {{ (tables_cfg or {}) | tojson }};
+const FORMAL_NAMES  = {{ (formal_names or {}) | tojson }};
+const ROLES_TABS = {{ (roles_tabs or {}) | tojson }};
+const ALL_ROLES  = {{ (all_roles  or []) | tojson }};
+const NICE_LABEL = {{ (nice_labels or {}) | tojson }};
+const ORDER_BY_TABLE = {{ (order_by_table or {}) | tojson }};
+
+/* ====== Helpers ====== */
+const YESNO = (name, checked=null, required=true) => {
+  const suf = Math.random().toString(36).slice(2,8);
+  const yes = `${name}_${suf}_si`;
+  const no  = `${name}_${suf}_no`;
+  return `
+    <div class="yn" role="radiogroup" aria-label="${name}">
+      <input type="radio" id="${yes}" name="${name}" value="true" ${checked===true?"checked":""} ${required?"required":""}/>
+      <label class="pill yes" for="${yes}">Sí</label>
+      <input type="radio" id="${no}" name="${name}" value="false" ${checked===false?"checked":""}/>
+      <label class="pill no" for="${no}">No</label>
+    </div>`;
+};
+const field = (label, inner) => {
+  const required = /\s(required|aria-required)/i.test(inner); //
+  const star = required ? ' <span style="color:red">*</span>' : '';
+  return `<div class="field"><label>${label}${star}</label>${inner}</div>`;
+};
+const t = {
+  text:(n,p='',req=true)=>`<input type="text" name="${n}" placeholder="${p}" ${req?'required':''}>`,
+  pass:(n)=>`<input type="password" name="${n}" required>`,
+  num:(n,step='0.1',req=true)=>`<input type="number" step="${step}" name="${n}" ${req?'required':''}>`,
+  date:(n,req=true)=>`<input type="date" name="${n}" ${req?'required':''} data-lock-date>`,
+  time:(n,req=true)=>`<input type="time" name="${n}" ${req?'required':''}>`,
+  sel:(n,opts=[], attrs='required')=>`<select name="${n}" ${attrs}>${
+    opts.map(o=>`<option value="${o.value}" ${o.disabled?'disabled':''} ${o.selected?'selected':''}>${o.label}</option>`).join("")
+  }</select>`,
+  area:(n,rows=8)=>`<textarea name="${n}" rows="${rows}"></textarea>`
+};
+const todayStr=()=>{const d=new Date();const o=d.getTimezoneOffset();return new Date(d.getTime()-o*60000).toISOString().split('T')[0]};
+
+/* ====== Opciones catálogos ====== */
+const optRazones = _razones.map(r=>({value:String(r.id), label:r.nombre}));
+const optRoles   = _roles.map(r=>({value:String(r.id), label:r.nombre}));
+
+/* ====== Formularios ====== */
+const forms = [
+  // --- Catálogos
+  { key:'tab_permisos_roles', label:'Permisos por Rol', noForm:true, build:()=>`
+	  <div class="card" style="padding:0">
+		<div id="rolesPermisos" style="padding:16px"></div>
+	  </div>` },
+	  
+  { key:'tbl_razon_social', label:'Razón Social', build:()=>`
+    <div class="form-grid">
+      ${field('Nombre', t.text('nombre_razon_social'))}
+    </div>` },
+
+  { key:'tbl_restaurante', label:'Restaurante', build:()=>`
+    <div class="form-grid">
+      ${field('Nombre', t.text('nom_restaurante'))}
+      ${field('Razón Social', t.sel('id_razon_social',[{value:'',label:'----Seleccionar----',disabled:true,selected:true},...optRazones]))}
+    </div>` },
+
+  { key:'tbl_roles', label:'Roles', build:()=>`
+    <div class="form-grid">
+      ${field('Nombre Rol', t.text('nom_rol'))}
+    </div>` },
+
+  { key:'tbl_usuario', label:'Usuarios', build:()=>`
+    <div class="form-grid">
+      ${field('Usuario', t.text('nom_usuario'))}
+      ${field('Contraseña', t.pass('contraseña'))}
+      ${field('Rol', t.sel('id_rol',[{value:'',label:'----Seleccionar----',disabled:true,selected:true},...optRoles]))}
+      ${field('Razón Social', t.sel('id_razon_social',[{value:'',label:'----Seleccionar----',disabled:true,selected:true},...optRazones]))}
+      ${field('Restaurante', `<select name="id_restaurante" required><option value="" disabled selected>----Seleccionar----</option></select>`)}
+      ${field('Activo', YESNO('activo'))}
+    </div>` },
+
+  // --- Operativas (listado arriba)
+  { key:'tbl_temp_equipos', label:'Temp. Equipos', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Tipo de equipo', t.sel('tipo_de_equipo',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'refrigeracion',label:'Refrigeración (0 a 5°C)'},
+        {value:'congelacion',label:'Congelación (-10 a -18°C)'},
+        {value:'caliente',label:'Caliente (> 65°C)'}]))}
+      ${field('Nº Equipo', t.num('num_equipo','1'))}
+      ${field('Tipo Toma', t.sel('tipo_toma',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'inicio',label:'Inicio'},
+        {value:'media',label:'Media'},
+        {value:'final',label:'Final'}]))}
+      ${field('Temperatura (°C)', t.num('temperatura','0.1'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_temp_alimentos', label:'Temp. Alimentos', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Producto', t.text('producto'))}
+      ${field('Temperatura', t.text('temperatura'))}
+      ${field('Tiempo preparación (min)', t.num('tiempo_preparacion','1'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_aceite_quemado', label:'Aceite Quemado', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Nº Freidora', t.num('num_freidora','1'))}
+      ${field('Filtración', YESNO('filtracion'))}
+      ${field('Cambio de aceite', YESNO('cambio_de_aceite'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_limpieza_trampas_tanque', label:'Limpieza Trampas/Tanque', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Tipo de trampa', t.sel('tipo_limpieza',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'trampa_grasa',label:'Trampa de grasa'},
+        {value:'tanque_agua',label:'Tanque de agua'}]))}
+      ${field('Limpieza', YESNO('limpieza'))}
+      ${field('Desinfección', YESNO('desinfeccion'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_bpm', label:'BPM', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Nombre Auxiliar', t.text('nombre_auxiliar'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+      ${field('Barba / Maquillaje', YESNO('barba_maquillaje'))}
+      ${field('Cabello / Gorro', YESNO('cabello_gorro'))}
+      ${field('Ausencia de heridas', YESNO('ausencia_heridas'))}
+      ${field('Joyas / Accesorios', YESNO('joyas_accesorios'))}
+      ${field('Perfumes', YESNO('perfumes'))}
+      ${field('Uñas / Manos', YESNO('unas_manos'))}
+      ${field('Uniforme', YESNO('uniforme'))}
+      ${field('Zapatos', YESNO('zapatos'))}
+    </div>` },
+
+  { key:'tbl_recepcion_materias_primas', label:'Recepción M.P.', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('MP / Insumo', t.text('mp_insumo'))}
+      ${field('Proveedor', t.text('proveedor'))}
+      ${field('Cantidad', t.num('cantidad','0.01'))}
+      ${field('Temperatura', t.text('temperatura'))}
+      ${field('Lote', t.text('lote'))}
+      ${field('Fecha Vencimiento', t.date('fecha_vencimiento'))}
+      ${field('Nº Factura', t.text('n_factura'))}
+      ${field('Req. Cert. Calidad', YESNO('requiere_cer_calidad'))}
+      ${field('Aceptado', YESNO('aceptado'))}
+      ${field('Transporte Limpio', YESNO('transporte_limpio'))}
+      ${field('Termoking', t.sel('termoking',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'Si',label:'Sí'},{value:'No',label:'No'},{value:'N/A',label:'N/A'}]))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_limpieza_zonascom', label:'Limpieza Zonas Comunes', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Establecimiento', t.text('establecimiento'))}
+      ${field('Baño Hombre', YESNO('baño_hombre'))}
+      ${field('Baño Mujer', YESNO('baño_mujer'))}
+      ${field('Salón', YESNO('salon'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_limpieza_general', label:'Limpieza General', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Zona/Equipo/Utensilio', t.text('zona'))}
+      ${field('Profunda', YESNO('profunda'))}
+      ${field('Rutinaria', YESNO('rutinaria'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_limpieza_alimentos', label:'Limpieza Alimentos', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Alimento', t.text('alimento'))}
+      ${field('Tiempo Exposición', t.sel('tiempo_exposicion',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'3 min',label:'3 min'},{value:'5 min',label:'5 min'},{value:'sin determinar',label:'Sin determinar'}]))}
+      ${field('Tipo Desinfección', t.sel('tipo_desinfeccion',[
+        {value:'',label:'-- Selecciona --',disabled:true,selected:true},
+        {value:'inmersion',label:'Inmersión'},{value:'aspersion',label:'Aspersión'},{value:'contacto',label:'Contacto'}]))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_agua_potable', label:'Agua Potable', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Olor', YESNO('olor'))}
+      ${field('Sabor', YESNO('sabor'))}
+      ${field('Color', YESNO('color'))}
+      ${field('Cloro (ppm)', t.num('cloro','0.01'))}
+      ${field('pH', t.num('ph','0.01'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  { key:'tbl_residuos_solidos', label:'Residuos Sólidos', build:()=>`
+    <div class="form-grid">
+      ${field('Fecha', t.date('fecha'))}
+      ${field('Hora Disposición', t.time('hora_disposicion_residuo'))}
+      ${field('Correcta Clasificación', YESNO('correcta_clasificacion'))}
+      ${field('Orgánico (verde)', YESNO('organico'))}
+      ${field('Reciclaje (blanca)', YESNO('reciclaje'))}
+      ${field('Ordinario (negra)', YESNO('ordinario'))}
+      ${field('Responsable', t.text('responsable'))}
+      ${field('Observaciones', t.area('observaciones',3))}
+    </div>` },
+
+  // --- Conf. parámetro operativo (SIN listado)
+  { key:'conf_parametro_operativo', label:'Conf. parámetro operativo', noList:true, build:()=>`
+    <div class="form-grid one">
+      ${field('Tabla operativa', (()=>{ const opts = Object.entries(FORMAL_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join(''); return `<select name="tabla" required><option value="" disabled selected>-- Seleccionar --</option>${opts}</select>`; })())}
+      ${field('Texto (admite <b>negrita</b>)', t.area('texto_html',12))}
+      ${field('Activo', YESNO('activo'))}
+    </div>` },
+
+  // --- Reportes
+  { key:'tab_reportes', label:'Reportes / Exportar', noForm:true, build:()=>`
+    <div class="form-grid">
+      ${field('Tabla', (()=>{ const opts = Object.entries(FORMAL_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join(''); return `<select name="rpt_table" required><option value="" disabled selected>-- Seleccionar --</option>${opts}</select>`; })())}
+      ${field('Fecha desde', `<input type="date" name="rpt_from">`)}
+      ${field('Fecha hasta', `<input type="date" name="rpt_to">`)}
+    </div>
+    <div class="field">
+      <label>Filtros por columna</label>
+      <div id="colFilters"></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btnQuery">Buscar</button>
+      <button type="button" class="btn" id="btnExport">Exportar a Excel</button>
+    </div>
+    <div class="list" style="max-height:360px;overflow:auto;margin-top:12px">
+      <div class="table" id="rpt_table"></div>
+    </div>` }
+];
+
+/* ====== Claves operativas (solo estas muestran listado arriba) ====== */
+const OPERATIVE_KEYS = forms
+  .filter(f => f.key.startsWith('tbl_') && !['tbl_razon_social','tbl_restaurante','tbl_roles','tbl_usuario'].includes(f.key))
+  .map(f => f.key);
+
+/* ====== Render tabs/panes ====== */
+const tabs = document.getElementById('tabs');
+const panes = document.getElementById('panes');
+
+// ========= Permisos por Rol (editable) =========
+
+// Inyectado por backend
+// const ROLES_TABS = {{ (roles_tabs or {}) | tojson }};
+
+const KEY2LABEL = forms.reduce((acc, f) => (acc[f.key]=f.label, acc), {});
+const ALL_TABS  = forms.map(f => f.key); // todas las llaves visibles en UI
+
+function buildPermisosUI(){
+  const mount = document.getElementById('rolesPermisos');
+  if(!mount) return;
+
+  const rowsHtml = (ALL_ROLES || []).map(role=>{
+    const has = new Set(ROLES_TABS?.[role] || []);
+    const cells = ALL_TABS.map(k=>{
+      const lbl = KEY2LABEL[k] || k;
+      const disabled = (k === 'tab_permisos_roles' && role !== 'Admin') ? 'disabled' : '';
+      const checked  = has.has(k) ? 'checked' : '';
+      return `<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 10px 6px 0">
+                <input type="checkbox" name="chk_${role}" value="${k}" ${checked} ${disabled}>
+                <span>${lbl}</span>
+              </label>`;
+    }).join('');
+    return `
+      <tr>
+        <td style="vertical-align:top;font-weight:700;white-space:nowrap">${role}</td>
+        <td>${cells}</td>
+      </tr>`;
+  }).join('');
+
+  mount.innerHTML = `
+    <h3 class="title" style="margin-bottom:10px">Permisos por Rol</h3>
+    <div class="table"><table>
+      <thead><tr><th>Rol</th><th>Pestañas visibles</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table></div>
+    <div class="actions" style="margin-top:14px">
+      <button type="button" class="btn primary" id="btnSavePerms">Guardar cambios</button>
+      <button type="button" class="btn" id="btnResetPerms">Restaurar (desde servidor)</button>
+    </div>
+	<p style="color:#64748b;margin-top:10px">
+      Nota: <b>Admin</b> siempre conserva acceso a <code>Permisos por Rol</code>.
+    </p>`;
+}
+
+function ensurePermsUI(){
+  if (!ALLOWED_TABS.has('tab_permisos_roles')) return;
+  buildPermisosUI();
+}
+setTimeout(ensurePermsUI, 0);
+
+document.addEventListener('click', (e)=>{
+  if (e.target.classList?.contains('tab') && e.target.dataset.key === 'tab_permisos_roles'){
+    ensurePermsUI();
+  }
+});
+
+// Guardar en backend (recorre TODOS los roles)
+document.addEventListener('click', async (e)=>{
+  if (e.target.id !== 'btnSavePerms') return;
+  const payload = {};
+  (ALL_ROLES || []).forEach(role=>{
+    const checks = Array.from(document.querySelectorAll(`input[name="chk_${role}"]:checked`));
+    payload[role] = checks.map(c=>c.value);
+    if (role === 'Admin' && !payload[role].includes('tab_permisos_roles')){
+      payload[role].push('tab_permisos_roles');
+    }
+  });
+  const r = await fetch('/api/roles_tabs', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(!r.ok){ alert('No se pudo guardar'); return; }
+  // refresca datos desde servidor
+  const rr = await fetch('/api/roles_tabs');
+  if(rr.ok){
+    const fresh = await rr.json();
+    Object.keys(ROLES_TABS).forEach(k=>delete ROLES_TABS[k]);
+    Object.assign(ROLES_TABS, fresh);
+  }
+  alert('Permisos actualizados.');
+});
+
+// Restaurar desde servidor (lo que esté vigente)
+document.addEventListener('click', async (e)=>{
+  if (e.target.id !== 'btnResetPerms') return;
+  const rr = await fetch('/api/roles_tabs');
+  if(!rr.ok){ alert('No se pudo restaurar'); return; }
+  const fresh = await rr.json();
+  Object.keys(ROLES_TABS).forEach(k=>delete ROLES_TABS[k]);
+  Object.assign(ROLES_TABS, fresh);
+  buildPermisosUI();
+});
+
+forms.forEach((f)=>{
+  if (!ALLOWED_TABS.has(f.key)) return;
+
+  const btn = document.createElement('button');
+  btn.className = 'tab' + (tabs.children.length===0 ? ' active' : '');
+  btn.dataset.key = f.key;
+  btn.textContent = f.label;
+  tabs.appendChild(btn);
+
+  const pane = document.createElement('div');
+  pane.className = 'pane card' + (tabs.children.length===1 ? ' active' : '');
+  pane.id = f.key;
+
+  const listHTML = (!f.noList && OPERATIVE_KEYS.includes(f.key))
+    ? `<div class="list"><div class="table" id="table_${f.key}"></div></div>` : '';
+
+  pane.innerHTML = `
+    <h3 class="title">${f.label}</h3>
+    ${f.noForm ? f.build() : `
+    ${listHTML}
+    <form method="post" data-table="${f.key}">
+      ${f.build()}
+      <div class="actions">
+        <button type="submit" class="btn primary">Guardar</button>
+        <button type="reset" class="btn">Limpiar</button>
+      </div>
+    </form>`}
+  `;
+  panes.appendChild(pane);
+
+  if (OPERATIVE_KEYS.includes(f.key)) loadList(f.key);
+});
+
+function lockAllDates(scope=document){
+  scope.querySelectorAll('input[data-lock-date]').forEach(inp=>{
+    if(!inp.value) inp.value = todayStr();
+    inp.readOnly = true;
+    inp.classList.add('locked-date');
+    inp.addEventListener('mousedown', e=>e.preventDefault(), true);
+    inp.addEventListener('keydown', e=>e.preventDefault(), true);
+  });
+}
+lockAllDates(document);
+
+/* ====== Pestañas ====== */
+tabs.addEventListener('click', async (e)=>{
+  if(!e.target.classList.contains('tab')) return;
+  const key = e.target.dataset.key;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  const pane = document.getElementById(key);
+  pane.classList.add('active');
+
+  if (OPERATIVE_KEYS.includes(key)) loadList(key);
+
+  // POP-UP CPO
+  if (OPERATIVE_KEYS.includes(key)) {
+    try{
+      const r = await fetch(`/api/cpo/message/${key}`);
+      const j = await r.json();
+      if (j && j.active){
+        document.getElementById('cpoHtml').innerHTML = j.html;
+        document.getElementById('cpoModal').style.display = 'flex';
+      }
+    }catch{}
+  }
+
+  if (key === 'tab_reportes'){
+    const sel = pane.querySelector('select[name="rpt_table"]');
+    if (sel) buildColFilters(sel.value);
+  }
+});
+document.getElementById('cpoOk').addEventListener('click', ()=> document.getElementById('cpoModal').style.display = 'none');
+
+/* ====== Listado común ====== */
+async function loadList(table){
+  const res = await fetch(`/api/${table}?limit=50`);
+  if(!res.ok) return;
+  const rows = await res.json();
+  const mount = document.getElementById(`table_${table}`);
+  if(!mount) return;
+
+  if (!rows.length){ 
+    mount.innerHTML = '<div style="padding:10px;color:#64748b">Sin registros</div>'; 
+    return; 
+  }
+
+  const HIDE = new Set(['id','id_razon_social','id_rol','id_restaurante','password_hash','usuario']);
+  // columnas base desde cfg o desde los datos
+  let baseCols = (TABLES_CFG[table] || Object.keys(rows[0])).filter(c=>!HIDE.has(c));
+
+  // reordenar si hay orden definido
+  const customOrder = ORDER_BY_TABLE?.[table];
+  let cols = customOrder ? customOrder.filter(c => baseCols.includes(c)) : baseCols;
+
+  const thead = '<thead><tr>'+cols.map(c=>`<th>${labelOf(table,c)}</th>`).join('')+'</tr></thead>';
+  const tbody = '<tbody>'+rows.map(r => 
+    '<tr>'+cols.map(c=>{
+      let v = (r[c] ?? '');
+      // Mostrar booleans como Sí/No
+      if (typeof v === 'boolean') v = v ? 'Sí' : 'No';
+      return `<td>${v}</td>`;
+    }).join('')+'</tr>'
+  ).join('')+'</tbody>';
+  mount.innerHTML = `<table>${thead}${tbody}</table>`;
+}
+
+/* ====== Submit (POST) ====== */
+document.addEventListener('submit', async (ev)=>{
+  const form = ev.target.closest('form'); if(!form) return;
+  ev.preventDefault();
+  if(!form.checkValidity()){ form.reportValidity(); return; }
+
+  const data = Object.fromEntries(new FormData(form).entries());
+  for (const k in data){
+    if(data[k]==='true') data[k]=true;
+    else if(data[k]==='false') data[k]=false;
+  }
+  if(!('usuario' in data) && currentUser) data['usuario']=currentUser;
+
+  const table = form.dataset.table;
+  const url = `/api/${table}`;
+  const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  if(res.ok){
+    alert('Guardado.');
+    form.reset();
+    lockAllDates(form);
+    if (OPERATIVE_KEYS.includes(table)) loadList(table);
+  }else{
+    alert('Error: '+await res.text());
+  }
+});
+
+/* ====== Reportes ====== */
+function buildColFilters(table){
+  const mount = document.querySelector('#tab_reportes #colFilters');
+  if (!mount){ return; }
+  if (!table){ mount.innerHTML=''; return; }
+  const cols = (TABLES_CFG[table] || []);
+  const BOOLS = new Set(["filtracion","cambio_de_aceite","limpieza","desinfeccion",
+    "requiere_cer_calidad","aceptado","transporte_limpio","olor","sabor","color",
+    "baño_hombre","baño_mujer","salon","profunda","rutinaria","correcta_clasificacion",
+    "organico","reciclaje","ordinario","barba_maquillaje","cabello_gorro","ausencia_heridas",
+    "joyas_accesorios","perfumes","unas_manos","uniforme","zapatos"]);
+  const SKIP = new Set(["id","fecha","usuario","password_hash","id_razon_social","id_rol","id_restaurante","observaciones"]);
+  let html = `<div class="form-grid">`;
+  cols.forEach(c=>{
+    if (SKIP.has(c)) return;
+    if (BOOLS.has(c)){
+      html += field(c, `<select name="cf_${c}"><option value="">—</option><option value="true">Sí</option><option value="false">No</option></select>`);
+    }else{
+      const lbl = (NICE_LABEL && NICE_LABEL[c]) || c;
+	  html += field(lbl, `<input type="text" name="cf_${c}" placeholder="contiene...">`);
+    }
+  });
+  html += `</div>`;
+  mount.innerHTML = html;
+}
+document.addEventListener('change', (e)=>{
+  if(e.target.matches('#tab_reportes select[name="rpt_table"]')){
+    buildColFilters(e.target.value);
+  }
+});
+document.addEventListener('click', async (e)=>{
+  if(e.target.id!=='btnQuery' && e.target.id!=='btnExport') return;
+  const pane = document.getElementById('tab_reportes');
+  const table = pane.querySelector('select[name="rpt_table"]').value;
+  if(!table){ alert('Selecciona una tabla'); return; }
+  const date_from = pane.querySelector('input[name="rpt_from"]').value || null;
+  const date_to   = pane.querySelector('input[name="rpt_to"]').value || null;
+
+  const cfInputs = pane.querySelectorAll('[name^="cf_"]');
+  const column_filters = {};
+  cfInputs.forEach(el=>{ const k = el.name.replace(/^cf_/,''); const v=(el.value||'').trim(); if(v!=='') column_filters[k]=v; });
+
+  const payload = { table, date_from, date_to, column_filters, limit: 500 };
+
+  if(e.target.id==='btnQuery'){
+	  const r = await fetch('/api/query', {
+		method:'POST', headers:{'Content-Type':'application/json'},
+		body:JSON.stringify(payload)
+	  });
+	  if(!r.ok){ alert('Error consulta'); return; }
+	  const rows = await r.json();
+	  const m = document.getElementById('rpt_table');
+	  if(!rows.length){ 
+		m.innerHTML = '<div style="padding:10px;color:#64748b">Sin resultados</div>'; 
+		return; 
+	  }
+
+	  const HIDE = new Set(['id','id_razon_social','id_rol','id_restaurante','password_hash','usuario']);
+	  // columnas base desde datos
+	  let baseCols = Object.keys(rows[0]).filter(c=>!HIDE.has(c));
+	  // aplicar orden si existe
+	  const customOrder = ORDER_BY_TABLE?.[table];
+	  const cols = (customOrder ? customOrder.filter(c=>baseCols.includes(c)) : baseCols);
+
+	  const labelOf = (col) => (NICE_LABEL && NICE_LABEL[col]) || col.replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+
+	  const thead = '<thead><tr>'+cols.map(c=>`<th>${labelOf(c)}</th>`).join('')+'</tr></thead>';
+	  const tbody = '<tbody>'+rows.map(r=>{
+		return '<tr>'+cols.map(c=>{
+		  let v = r[c];
+		  if (typeof v === 'boolean') v = v ? 'Sí' : 'No';
+		  return `<td>${v ?? ''}</td>`;
+		}).join('')+'</tr>';
+	  }).join('')+'</tbody>';
+
+	  m.innerHTML = `<table>${thead}${tbody}</table>`;
+	}else{
+    const r = await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok){ alert('Error exportando'); return; }
+    const disposition = r.headers.get('Content-Disposition') || '';
+	const fnameMatch = disposition.match(/filename="([^"]+)"/);
+	const filename = fnameMatch ? fnameMatch[1] : `export_${table}.xlsx`;
+
+	const blob = await r.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
+  }
+});
+
+/* ====== Dependiente: restaurantes por razón social (Usuarios) ====== */
+const restByRazon = _restaurantes.reduce((acc,r)=>{(acc[r.id_razon_social] ||= []).push({value:String(r.id),label:r.nombre});return acc;}, {});
+document.addEventListener('change', (e)=>{
+  if(e.target.matches('select[name="id_razon_social"]')){
+    const form = e.target.closest('form'); if(!form) return;
+    const selRes = form.querySelector('select[name="id_restaurante"]'); if(!selRes) return;
+    const rsId = e.target.value; const base = [{value:'',label:'----Seleccionar----',disabled:true,selected:true}];
+    const opts = (restByRazon[rsId] || []);
+    selRes.innerHTML = [...base, ...opts].map(o=>`<option value="${o.value}" ${o.disabled?'disabled':''} ${o.selected?'selected':''}>${o.label}</option>`).join('');
+  }
+});
+
+/* ====== Fechas bloqueadas (por defecto hoy) ====== */
+function afterMountInit(){ lockAllDates(document); }
+afterMountInit();
+</script>
+</body>
+</html>
