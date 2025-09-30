@@ -26,13 +26,18 @@ def make_app():
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.secret_key = os.getenv("APP_SECRET", "change-me")
 
-    # === PostgreSQL (recomendado) ===
-    PG_USER = os.getenv("PGUSER", "register_user")
-    PG_PASS = os.getenv("PGPASS", "register_pass")
-    PG_HOST = os.getenv("PGHOST", "localhost")
-    PG_PORT = os.getenv("PGPORT", "5432")
-    PG_DB   = os.getenv("PGDATABASE", "registerapp")
-    DB_URI  = f"postgresql+psycopg2://{PG_USER}:{PG_PASS}@{PG_HOST}:{PG_PORT}/{PG_DB}"
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        # por si alguna vez viene como postgres://
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        DB_URI = db_url
+    else:
+        PG_USER = os.getenv("PGUSER", "register_user")
+        PG_PASS = os.getenv("PGPASS", "register_pass")
+        PG_HOST = os.getenv("PGHOST", "localhost")
+        PG_PORT = os.getenv("PGPORT", "5432")
+        PG_DB   = os.getenv("PGDATABASE", "registerapp")
+        DB_URI  = f"postgresql+psycopg2://{PG_USER}:{PG_PASS}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 
     app.config["SQLALCHEMY_DATABASE_URI"] = DB_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
